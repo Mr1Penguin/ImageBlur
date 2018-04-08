@@ -118,13 +118,13 @@ __kernel void BlurRow(const __global CLQuantum *image, const unsigned int number
 		{
 			for (int j = 0; j < 8; j++)
 			{
-				result = mad(filter[i + j], temp[i + j + get_local_id(0)], result);
+				result += filter[i + j] * temp[i + j + get_local_id(0)];
 			}
 			i += 8;
 		}
 		for (; i < width; i++)
 		{
-			result = mad(filter[i], temp[i + get_local_id(0)], result);
+			result += filter[i] * temp[i + get_local_id(0)];
 		}
 
 		write_imagef(tempImage, (int2)(x, y), result);
@@ -149,12 +149,12 @@ __kernel void BlurColumn(read_only image2d_t image, __global CLQuantum * output,
 
 		for (; i + 7 < kernel_width; i += 8) {
 			for (int j = 0; j < 8; ++j) {
-				res = mad(filter[i+j], read_imagef(image, sampler, (int2)(x, offset + i + j + get_local_id(1))), res);
+				res += filter[i+j] * read_imagef(image, sampler, (int2)(x, offset + i + j + get_local_id(1)));
 			}
 		}
 
 		for (; i < kernel_width; ++i) {
-			res = mad(filter[i], read_imagef(image, sampler, (int2)(x, offset + i + get_local_id(1))), res);
+			res += filter[i] * read_imagef(image, sampler, (int2)(x, offset + i + get_local_id(1)));
 		}
 
 		WriteFloat4(output, number_channels, image_width, x, y, channel, res);		
