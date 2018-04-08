@@ -88,60 +88,71 @@ inline float4 ReadFloat4(const __global CLQuantum *image, const unsigned int num
 	return (float4)(red, green, blue, alpha);
 }
 
-__kernel void BlurRow(const __global CLQuantum *image, const unsigned int number_channels, const ChannelType channel, 
-	__constant float *filter, const unsigned int width, const unsigned int imageColumns, const unsigned int imageRows, __global float4 *tempImage)
+constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
+
+__kernel void BlurRow(read_only image2d_t image, write_only image2d_t output, const unsigned int kernel_width, __constant float *filter, uint image_width)
 {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
-	const int columns = imageColumns;
-	const unsigned int radius = (width - 1) / 2;
+
+	const uint radius = (kernel_width - 1) / 2;
 	const int groupX = get_local_size(0) * get_group_id(0);
+	const uint offset = groupX - radius;
+	if (get_global_id(0) < image_width) {
+		float4 res = (float4)0;
 
-	const uint offset = get_local_id(0) + groupX - radius;
-
-	if (get_global_id(0) < columns)
-	{
-		float4 result = (float4)0;
 		int i = 0;
-		for (; i + 7 < width;)
-		{
-			for (int j = 0; j < 8; j++)
-			{
-				int cx = ClampToCanvas(i + j + offset, columns);
-				result += filter[i + j] * ReadFloat4(image, number_channels, columns, cx, y, channel);
+		for (; i + 7 < kernel_width; i += 8) {
+			for (int j = 0; j < 8; ++j) {
+				res += filter[i + j] * read_imagef(image, sampler, (int2)(i + offset + j + get_local_id(0), y));
 			}
-			i += 8;
 		}
-		for (; i < width; i++)
-		{
-			int cx = ClampToCanvas(i + offset, columns);
-			result += filter[i] * ReadFloat4(image, number_channels, columns, cx, y, channel);
+
+		for (; i < kernel_width; ++i) {
+			res += filter[i] * read_imagef(image, sampler, (int2)(i + offset + get_local_id(0), y));;
 		}
-		tempImage[y * columns + x] = result;
+
+		write_imagef(output, (int2)(x, y), res);
 	}
 }
-__kernel void BlurColumn(const __global float4 *blurRowData, const unsigned int number_channels, const ChannelType channel, 
-	__constant float *filter, const unsigned int width, const unsigned int imageColumns, const unsigned int imageRows, __global CLQuantum *filteredImage)
-{
+
+__kernel void BlurColumn(read_only image2d_t image, __global CLQuantum * output, const unsigned int kernel_width, __constant float *filter,
+	uint image_height, uint image_width, const unsigned int number_channels, const ChannelType channel, __local float4 *temp) {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
-	const int columns = imageColumns;
-	const int rows = imageRows;
-	unsigned int radius = (width - 1) / 2;
-	const int groupX = get_local_size(0) * get_group_id(0);
-	const int groupY = get_local_size(1) * get_group_id(1);
-	if (get_global_id(1) < rows)
-	{
-		float4 result = (float4)0;
+
+	const uint radius = (kernel_width - 1) / 2;
+	const int groupX = get_local_size(0)*get_group_id(0);
+	const int groupY = get_local_size(1)*get_group_id(1);
+
+	const uint offset = groupY - radius;
+
+	const unsigned int loadSize = get_local_size(1) + kernel_width;
+
+	for (int i = get_local_id(1); i < loadSize; i = i + get_local_size(1))
+		temp[i] = read_imagef(image, sampler, (int2)(x, offset + i));
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+
+
+
+	float4 pixels[8];
+
+	if (get_global_id(1) < image_height) {
+		float4 res = (float4) 0;
+
 		int i = 0;
-		for (; i + 7 < width;)
-		{
-			for (int j = 0; j < 8; j++)
-				result += filter[i + j] * blurRowData[ClampToCanvas(i + j + get_local_id(1) + groupY - radius, rows) * columns + groupX];
-			i += 8;
+
+		for (; i + 7 < kernel_width; i += 8) {
+			for (int j = 0; j < 8; ++j) {
+				res += filter[i + j] * temp[i + j + get_local_id(1)];
+			}
 		}
-		for (; i < width; i++)
-			result += filter[i] * blurRowData[ClampToCanvas(i + get_local_id(1) + groupY - radius, rows) * columns + groupX];
-		WriteFloat4(filteredImage, number_channels, columns, x, y, channel, result);
+
+		for (; i < kernel_width; ++i) {
+			res += filter[i] * temp[i + get_local_id(1)];
+		}
+
+		WriteFloat4(output, number_channels, image_width, x, y, channel, res);		
 	}
 }
