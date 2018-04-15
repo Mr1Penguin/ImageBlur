@@ -37,5 +37,14 @@
     <None Include="main.cl">
       <Filter>OpenCL files</Filter>
     </None>
+    <None Include="nocache.cl">
+      <Filter>OpenCL files</Filter>
+    </None>
+    <None Include="image2d_t.cl">
+      <Filter>OpenCL files</Filter>
+    </None>
+    <None Include="image2d_t2.cl">
+      <Filter>OpenCL files</Filter>
+    </None>
   </ItemGroup>
 </Project>

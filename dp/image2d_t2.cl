@@ -62,7 +62,7 @@ inline void WriteFloat4(__global CLQuantum *image, const unsigned int number_cha
 	WriteChannels(p, number_channels, channel, pixel.x, pixel.y, pixel.z, pixel.w);
 }
 
-inline void ReadChannels(const __global CLQuantum *p, co	nst unsigned int number_channels, const ChannelType channel, float *red, float *green, float *blue, float *alpha)
+inline void ReadChannels(const __global CLQuantum *p, const unsigned int number_channels, const ChannelType channel, float *red, float *green, float *blue, float *alpha)
 {
 	if ((channel & RedChannel) != 0)
 		*red = getPixelRed(p);
@@ -90,14 +90,16 @@ inline float4 ReadFloat4(const __global CLQuantum *image, const unsigned int num
 
 constant sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
-__kernel void BlurRow(const __global CLQuantum *image, const unsigned int number_channels, const ChannelType channel,
-	__constant float *filter, const unsigned int width, const unsigned int imageColumns, const unsigned int imageRows, __local float4 * temp, /*__global float4 **/ write_only image2d_t tempImage, uint image_align_width)
+__kernel void BlurRow(const __global CLQuantum *image, const unsigned int number_channels, 
+	const ChannelType channel, __constant float *filter, const unsigned int width, 
+	const unsigned int imageColumns, const unsigned int imageRows, __local float4 * temp, 
+	write_only image2d_t tempImage)
 {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
 	const int columns = imageColumns;
 	const unsigned int radius = (width - 1) / 2;
-	
+
 	const int groupX = get_local_size(0) * get_group_id(0);
 
 	const int wsize = get_local_size(0);
@@ -131,8 +133,9 @@ __kernel void BlurRow(const __global CLQuantum *image, const unsigned int number
 	}
 }
 
-__kernel void BlurColumn(read_only image2d_t image, __global CLQuantum * output, const unsigned int kernel_width, __constant float *filter,
-	uint image_height, uint image_width, const unsigned int number_channels, const ChannelType channel) {
+__kernel void BlurColumn(read_only image2d_t image, __global CLQuantum * output, 
+	const unsigned int kernel_width, __constant float *filter, uint image_height,
+	uint image_width, const unsigned int number_channels, const ChannelType channel) {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
 
@@ -149,7 +152,7 @@ __kernel void BlurColumn(read_only image2d_t image, __global CLQuantum * output,
 
 		for (; i + 7 < kernel_width; i += 8) {
 			for (int j = 0; j < 8; ++j) {
-				res += filter[i+j] * read_imagef(image, sampler, (int2)(x, offset + i + j + get_local_id(1)));
+				res += filter[i + j] * read_imagef(image, sampler, (int2)(x, offset + i + j + get_local_id(1)));
 			}
 		}
 
@@ -157,6 +160,6 @@ __kernel void BlurColumn(read_only image2d_t image, __global CLQuantum * output,
 			res += filter[i] * read_imagef(image, sampler, (int2)(x, offset + i + get_local_id(1)));
 		}
 
-		WriteFloat4(output, number_channels, image_width, x, y, channel, res);		
+		WriteFloat4(output, number_channels, image_width, x, y, channel, res);
 	}
 }
