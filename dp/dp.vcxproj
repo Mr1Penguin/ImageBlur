@@ -245,6 +245,8 @@
     <None Include="image2d_t2.cl" />
     <None Include="main.cl" />
     <None Include="nocache.cl" />
+    <None Include="subgroup.cl" />
+    <None Include="test.cl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
